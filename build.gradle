@@ -1,0 +1,96 @@
+buildscript {
+    dependencies {
+        classpath 'com.pascalwelsch.gitversioner:gitversioner:0.4.1'
+    }
+}
+
+plugins {
+    // Apply the java plugin to add support for Java
+    id 'java'
+    // Apply the application plugin to add support for building an application
+    id 'application'
+    // Apply the Maven publish plugin to publish resulting artefacts into a Maven repository
+    id 'maven-publish'
+}
+
+// https://github.com/passsy/gradle-gitVersioner-plugin
+apply plugin: 'com.pascalwelsch.gitversioner'
+
+group = externalGroup
+version = gitVersioner.versionName
+
+// Define the main class for the application
+mainClassName = externalMainClassName
+
+run {
+    // Pass all system properties to the application and the start scripts (overwrite previously defined defaults if any)
+    systemProperties System.getProperties()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            name = 'build-repository'
+            url = "file://${buildDir}/mvn-repo"
+        }
+    }
+}
+
+dependencies {
+    compile group: 'com.google.photos.library', name: 'google-photos-library-client', version: '1.0.1'
+    // for com.google.photos.library.sample.factories.PhotosLibraryClientFactory
+    compile group: 'com.google.oauth-client', name: 'google-oauth-client-jetty', version: '1.27.0'
+    compile group: 'com.google.oauth-client', name: 'google-oauth-client-java6', version: '1.27.0'
+    compile (group: 'com.google.api-client', name: 'google-api-client', version: '1.27.0') {
+        exclude group: 'com.google.guava', module: 'guava-jdk5'
+    }
+    // for HTTPS communication, required by com.google.api.gax.(g)rpc.*
+    compile group: 'io.grpc', name: 'grpc-netty', version: '1.15.1' // v1.16.1 breaks com.google.common.util.concurrent.Futures API
+    compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: '2.0.19.Final'
+    // logging, CLI args, and ANSI colors
+    compile group: 'info.picocli', name: 'picocli', version: '3.8.0'
+    compile group: 'org.fusesource.jansi', name: 'jansi', version: '1.17.1'
+    // source-code quality
+    compile group: 'org.jetbrains', name: 'annotations', version: '16.0.3'
+    // Use JUnit test framework
+    testCompile 'junit:junit:4.12'
+}
+
+// In this section you declare where to find the dependencies of your project
+repositories {
+    // Use jcenter for resolving dependencies
+    jcenter()
+}
+
+jar {
+  manifest {
+    attributes(
+      'Main-Class': externalMainClassName,
+      'Implementation-Title': externalProjectName,
+      'Implementation-Version': version
+    )
+  }
+}
+
+task fatJar(type: Jar) {
+  manifest.from jar.manifest
+  classifier = 'all'
+  from {
+    configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+  } {
+    exclude "META-INF/*.SF"
+    exclude "META-INF/*.DSA"
+    exclude "META-INF/*.RSA"
+  }
+  zip64 true
+  with jar
+}
+
+artifacts {
+    archives fatJar
+}
