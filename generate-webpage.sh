@@ -38,7 +38,14 @@ $(makeLink "		" ./distributions/*)
 	<ul>
 		<li><a href="${CI_PROJECT_URL}">source-code repository</a><br /><code>git clone ${CI_PROJECT_URL}.git</code></li>
 		<li><a href="./javadoc/">JavaDoc documentation</a></li>
-		<li><a href="./mvn-repo">Maven repository</a></li>
+		<li>Maven repositories:
+			<ul>
+				<li><a href="./mvn-repo">stable/latest only</a></li>
+				<li><a href="https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/packages/maven/">development builds</a>
+					(<a href="https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/packages/maven/${externalGroup//.//}/${externalProjectName}/maven-metadata.xml">maven-metadata.xml</a>)
+				</li>
+			</ul>
+		</li>
 	</ul>
 	<h2>Usage</h2>
 	<pre>$(cat help.txt | tr -d '<>&')</pre>

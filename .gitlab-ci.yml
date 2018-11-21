@@ -5,11 +5,15 @@ image: openjdk:8-alpine
 # runtime for each build is more reliable since the runtime is completely
 # isolated from any previous builds.
 variables:
+  GRADLE_VERSION: "4.10.2"
+  GRADLE_HOME: "/opt/gradle"
   GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
 before_script:
-  - apk add --no-cache gradle git
+  - wget -qO - "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" | unzip -d /tmp -
+  - mkdir "${GRADLE_HOME%/*}" && mv "/tmp/gradle-${GRADLE_VERSION}" "${GRADLE_HOME}/" && chmod 755 "${GRADLE_HOME}/bin/gradle" && ln -vs "${GRADLE_HOME}/bin/gradle" /usr/bin/gradle
   - export GRADLE_USER_HOME=`pwd`/.gradle
+  - apk add --no-cache git
 
 build:
   stage: build
