@@ -22,6 +22,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
+import java.util.logging.Handler;
+import java.util.logging.Level;
 
 @CommandLine.Command(name = "GPhotosUploader",
         versionProvider = GPhotosUploader.GradlePropertiesVersionProvider.class,
@@ -32,6 +34,8 @@ import java.util.Properties;
 public class GPhotosUploader implements Runnable {
     private static final String CONFIG_KEY_CREDENTIALS_FILE = "google.api.credentials.client-secret.file";
     private static final String CONFIG_KEY_CREDENTIALS_DIRECTORY = "google.api.credentials.directory";
+    // for names of the logger levels, see https://docs.oracle.com/javase/8/docs/api/java/util/logging/Level.html#field.summary
+    private static final String CONFIG_KEY_LOGGER_CONSOLE_LEVEL_NAME = "logger.console.levelName";
     private static final String CONFIG_FILE = GPhotosUploader.class.getSimpleName() + ".properties";
     private static final String CREDENTIALS_FILE = "client_secret.json";
     private static final String CREDENTIALS_DIRECTORY = "credentials";
@@ -69,10 +73,17 @@ public class GPhotosUploader implements Runnable {
     public void run() {
         AnsiConsole.systemInstall();
         LoggerFactory.init(GPhotosUploader.class.getCanonicalName());
-        LoggerFactory.addAnsiConsoleHandler(LoggerFactory.loggingLevelForVerbosity(verbose.length - quiet.length));
+        final Handler ansiConsoleHandler = LoggerFactory.addAnsiConsoleHandler(LoggerFactory.loggingLevelForVerbosity(verbose.length - quiet.length));
         LoggerFactory.addFileHandler(LoggerFactory.tempLogFilePatternForName(GPhotosUploader.class.getCanonicalName()));
         try {
             final Properties configProperties = this.config.loadPropertiesFromConfigFileOrEmpty(configFile);
+            // logging verbosity from the config file if not set by args
+            if ((verbose.length == 0) && (quiet.length == 0)) {
+                final String consoleLevelName = configProperties.getProperty(CONFIG_KEY_LOGGER_CONSOLE_LEVEL_NAME);
+                if ((consoleLevelName != null) && !consoleLevelName.isEmpty()) {
+                    ansiConsoleHandler.setLevel(Level.parse(consoleLevelName));
+                }
+            }
             // login credentials filename
             final String credentialsFile = this.config.getConfigFile(
                     configProperties.getProperty(CONFIG_KEY_CREDENTIALS_FILE, CREDENTIALS_FILE)).getAbsolutePath();

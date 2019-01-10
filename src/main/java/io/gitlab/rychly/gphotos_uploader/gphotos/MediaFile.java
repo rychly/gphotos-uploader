@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.stream.Stream;
 
 /**
@@ -133,6 +134,7 @@ public class MediaFile extends File {
         if (files == null) {
             throw new FileNotFoundException("Cannot find directory " + directory);
         }
+        Arrays.sort(files, Comparator.comparing(File::getName));
         return Arrays.stream(files).map(MediaFile::new);
     }
 
