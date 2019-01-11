@@ -1,6 +1,7 @@
 ## IntelliJ project files
 .idea
 *.iml
+*.ipr
 
 ##
 ## Specifies intentionally untracked files to ignore for Maven

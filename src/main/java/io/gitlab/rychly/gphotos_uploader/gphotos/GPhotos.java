@@ -120,9 +120,13 @@ public class GPhotos {
     @NotNull
     public static Tuple3<Collection<MediaItem>, Collection<MediaItem>, Collection<MediaFile>> classifyMediaItemsByFilesAndGetMissingFiles(
             @NotNull PhotosLibraryClient photosLibraryClient, Album album, @NotNull Stream<MediaFile> files) {
-        // create a hash map for fast search of the files by their names
+        // create a linked hash map for fast search of the files by their names with keeping their order as in the stream
         final Map<String, MediaFile> stringMediaFileMap =
-                files.collect(Collectors.toMap(MediaFile::getName, mediaFile -> mediaFile));
+                files.collect(Collectors.toMap(MediaFile::getName, mediaFile -> mediaFile,
+                        (v1, v2) -> {
+                            throw new RuntimeException(String.format("Duplicate file-names for media files %s and %s", v1, v2));
+                        },
+                        LinkedHashMap::new));
         // classify media items to two classes: matching and non-matching the files
         final Map<Boolean, List<MediaItem>> mediaItemsClassifiedByFiles =
                 StreamSupport.stream(getMediaItems(photosLibraryClient, album).spliterator(), false)
