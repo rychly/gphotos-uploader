@@ -48,6 +48,18 @@ public class GPhotos {
     }
 
     /**
+     * List all albums in the user's sharing tab to be able to iterate over all the shared albums in this list (pagination is handled automatically).
+     *
+     * @param photosLibraryClient the photos library client
+     * @return the iterator over the list of all shared albums
+     */
+    public static Iterable<Album> getSharedAlbums(@NotNull PhotosLibraryClient photosLibraryClient) {
+        final InternalPhotosLibraryClient.ListSharedAlbumsPagedResponse listSharedAlbumsPagedResponse = photosLibraryClient.listSharedAlbums();
+        return listSharedAlbumsPagedResponse.iterateAll();
+
+    }
+
+    /**
      * Get an album of a given identifier.
      *
      * @param photosLibraryClient the photos library client
@@ -59,15 +71,29 @@ public class GPhotos {
     }
 
     /**
-     * Get a stream of all albums of a given title.
+     * Get a stream of all albums of a given title or matching a given regular expression (the empty regex for all albums).
      *
      * @param photosLibraryClient the photos library client
-     * @param title               the album title to search
+     * @param titleOrRegEx               the album title or its regular expression to search
+     * @param isRegularExpression the provided title is a regular expression
      * @return the stream of the albums
      */
-    public static Stream<Album> getAlbumsStreamByTitle(@NotNull PhotosLibraryClient photosLibraryClient, String title) {
+    public static Stream<Album> getAlbumsStreamByTitle(@NotNull PhotosLibraryClient photosLibraryClient, String titleOrRegEx, boolean isRegularExpression) {
         return StreamSupport.stream(getAlbums(photosLibraryClient).spliterator(), false)
-                .filter(album -> album.getTitle().equals(title));
+                .filter(album -> isRegularExpression ? (titleOrRegEx.isEmpty() || album.getTitle().matches(titleOrRegEx)) : album.getTitle().equals(titleOrRegEx));
+    }
+
+    /**
+     * Get a stream of all shared albums of a given title or matching a given regular expression (the empty regex for all shared albums).
+     *
+     * @param photosLibraryClient the photos library client
+     * @param titleOrRegEx               the album title or its regular expression to search
+     * @param isRegularExpression the provided title is a regular expression
+     * @return the stream of the shared albums
+     */
+    public static Stream<Album> getSharedAlbumsStreamByTitle(@NotNull PhotosLibraryClient photosLibraryClient, String titleOrRegEx, boolean isRegularExpression) {
+        return StreamSupport.stream(getSharedAlbums(photosLibraryClient).spliterator(), false)
+                .filter(album -> isRegularExpression ? (titleOrRegEx.isEmpty() || album.getTitle().matches(titleOrRegEx)) : album.getTitle().equals(titleOrRegEx));
     }
 
     /**
@@ -79,7 +105,7 @@ public class GPhotos {
      */
     public static Album getOrCreateAlbum(@NotNull PhotosLibraryClient photosLibraryClient, String title) {
         // find the first album with the given title
-        final Optional<Album> album = getAlbumsStreamByTitle(photosLibraryClient, title).findFirst();
+        final Optional<Album> album = getAlbumsStreamByTitle(photosLibraryClient, title, false).findFirst();
         // (only) if absent create a new album with the given title
         return album.orElseGet(() -> photosLibraryClient.createAlbum(title));
     }

@@ -1,16 +1,19 @@
 package io.gitlab.rychly.gphotos_uploader;
 
+import com.google.api.gax.rpc.ApiException;
 import com.google.common.collect.ImmutableList;
 import com.google.photos.library.sample.factories.PhotosLibraryClientFactory;
 import com.google.photos.library.v1.PhotosLibraryClient;
 import com.google.photos.library.v1.proto.Album;
 import com.google.photos.library.v1.proto.MediaItem;
+import com.google.photos.library.v1.proto.SharedAlbumOptions;
 import io.gitlab.rychly.gphotos_uploader.config.Config;
 import io.gitlab.rychly.gphotos_uploader.gphotos.GPhotos;
 import io.gitlab.rychly.gphotos_uploader.gphotos.MediaFile;
 import io.gitlab.rychly.gphotos_uploader.i18n.Messages;
 import io.gitlab.rychly.gphotos_uploader.i18n.ResourceBundleFactory;
 import io.gitlab.rychly.gphotos_uploader.logger.LoggerFactory;
+import io.gitlab.rychly.gphotos_uploader.tuples.Tuple2;
 import io.gitlab.rychly.gphotos_uploader.tuples.Tuple3;
 import org.fusesource.jansi.AnsiConsole;
 import picocli.CommandLine;
@@ -20,10 +23,12 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
 import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.stream.Stream;
 
 @CommandLine.Command(name = "GPhotosUploader",
         versionProvider = GPhotosUploader.GradlePropertiesVersionProvider.class,
@@ -44,7 +49,9 @@ public class GPhotosUploader implements Runnable {
             // List items from the library and all albums, access all media items and list albums owned by the user, including those which have been shared with them.
             "https://www.googleapis.com/auth/photoslibrary.readonly",
             // Access to upload bytes, create media items, create albums, and add enrichment. Only allows new media to be created in the user's library and in albums created by the app.
-            "https://www.googleapis.com/auth/photoslibrary.appendonly"
+            "https://www.googleapis.com/auth/photoslibrary.appendonly",
+            // Access to create an album, share it, upload media items to it, and join a shared album.
+            "https://www.googleapis.com/auth/photoslibrary.sharing"
     );
     private Config config;
 
@@ -56,6 +63,18 @@ public class GPhotosUploader implements Runnable {
 
     @CommandLine.Option(names = {"-c", "--config"}, description = "Name of or path to the configuration file.")
     private String configFile = CONFIG_FILE;
+
+    @CommandLine.Option(names = {"-l", "--list-albums"}, arity = "0..1", description = "List online albums matching particular regular expression in the alphabetical order (the empty expression matches all).")
+    private String listAlbums;
+
+    @CommandLine.Option(names = {"-p", "---list-shared-albums"}, arity = "0..1", description = "List shared/public online albums matching particular regular expression in the alphabetical order (the empty expression matches all).")
+    private String listSharedAlbums;
+
+    @CommandLine.Option(names = {"-s", "--share-albums"}, arity = "0..1", description = "Share (by URL) online albums matching particular regular expression in the alphabetical order (the empty expression matches all).")
+    private String shareAlbums;
+
+    @CommandLine.Option(names = {"-u", "--unshare-albums"}, arity = "0..1", description = "Unshare shared online albums matching particular regular expression in the alphabetical order (the empty expression matches all).")
+    private String unshareAlbums;
 
     @CommandLine.Parameters(arity = "0..*", paramLabel = "media-directory", description = "Directory(ies) of media files to process.")
     private File[] inputDirectories;
@@ -95,24 +114,103 @@ public class GPhotosUploader implements Runnable {
                     ResourceBundleFactory.msg(Messages.CONNECTING_TO_GPHOTOS));
             final PhotosLibraryClient photosLibraryClient = PhotosLibraryClientFactory.createClient(
                     credentialsFile, REQUIRED_SCOPES, new File(credentialsDirectory));
-            // process directories
-            LoggerFactory.getLogger().fine(
-                    ResourceBundleFactory.msg(Messages.SCANNING_DIRECTORIES));
-            if (inputDirectories != null) {
-                for (File inputDirectory : inputDirectories) {
-                    LoggerFactory.getLogger().info(
-                            ResourceBundleFactory.msg(Messages.PROCESSING_DIRECTORY_1, inputDirectory.getAbsolutePath()));
-                    processMediaDirectory(photosLibraryClient, inputDirectory, inputDirectory.getName());
-                }
+            // check mode
+            if (listAlbums != null) {
+                // list albums by regex
+                LoggerFactory.getLogger().fine(
+                        ResourceBundleFactory.msg(Messages.LISTING_ALBUMS_1, listAlbums));
+                listAlbums(photosLibraryClient, listAlbums);
+            } else if (listSharedAlbums != null) {
+                    // list shared albums by regex
+                    LoggerFactory.getLogger().fine(
+                            ResourceBundleFactory.msg(Messages.LISTING_SHARED_ALBUMS_1, listSharedAlbums));
+                    listSharedAlbums(photosLibraryClient, listSharedAlbums);
+            } else if (shareAlbums != null) {
+                // share albums by regex
+                LoggerFactory.getLogger().fine(
+                        ResourceBundleFactory.msg(Messages.SHARING_ALBUMS_1, shareAlbums));
+                shareAlbums(photosLibraryClient, shareAlbums, false, false);
+            } else if (unshareAlbums != null) {
+                // unshare albums by regex
+                LoggerFactory.getLogger().fine(
+                        ResourceBundleFactory.msg(Messages.UNSHARING_ALBUMS_1, unshareAlbums));
+                unshareAlbums(photosLibraryClient, unshareAlbums);
             } else {
-                LoggerFactory.getLogger().warning(
-                        ResourceBundleFactory.msg(Messages.NOTHING_TO_PROCESS));
+                // process directories
+                LoggerFactory.getLogger().fine(
+                        ResourceBundleFactory.msg(Messages.SCANNING_DIRECTORIES));
+                if (inputDirectories != null) {
+                    for (File inputDirectory : inputDirectories) {
+                        LoggerFactory.getLogger().info(
+                                ResourceBundleFactory.msg(Messages.PROCESSING_DIRECTORY_1, inputDirectory.getAbsolutePath()));
+                        processMediaDirectory(photosLibraryClient, inputDirectory, inputDirectory.getName());
+                    }
+                } else {
+                    LoggerFactory.getLogger().warning(
+                            ResourceBundleFactory.msg(Messages.NOTHING_TO_PROCESS));
+                }
             }
         } catch (IOException | GeneralSecurityException e) {
             e.printStackTrace();
         } finally {
             AnsiConsole.systemUninstall();
         }
+    }
+
+    private void listAlbums(PhotosLibraryClient photosLibraryClient, String regexPattern) {
+        GPhotos.getAlbumsStreamByTitle(photosLibraryClient, regexPattern, true)
+                .sorted(Comparator.comparing(Album::getTitle))
+                .forEach(album -> LoggerFactory.getLogger().info(
+                        ResourceBundleFactory.msg(Messages.LIST_ALBUM_2, album.getTitle(),
+                                album.hasShareInfo() ? album.getShareInfo().getShareableUrl() : album.getProductUrl())));
+    }
+
+    private void listSharedAlbums(PhotosLibraryClient photosLibraryClient, String regexPattern) {
+        GPhotos.getSharedAlbumsStreamByTitle(photosLibraryClient, regexPattern, true)
+                .sorted(Comparator.comparing(Album::getTitle))
+                .forEach(album -> LoggerFactory.getLogger().info(
+                        ResourceBundleFactory.msg(Messages.LIST_ALBUM_2, album.getTitle(),
+                                album.hasShareInfo() ? album.getShareInfo().getShareableUrl() : album.getProductUrl())));
+    }
+
+    private void shareAlbums(PhotosLibraryClient photosLibraryClient, String regexPattern, boolean isCollaborative, boolean isCommentable) {
+        final SharedAlbumOptions sharedAlbumOptions = SharedAlbumOptions.newBuilder()
+                .setIsCollaborative(isCollaborative).setIsCommentable(isCommentable).build();
+        GPhotos.getAlbumsStreamByTitle(photosLibraryClient, regexPattern, true)
+                .sorted(Comparator.comparing(Album::getTitle))
+                .flatMap(album -> {
+                    try {
+                        return Stream.of(Tuple2.makeTuple(album, photosLibraryClient.shareAlbum(album.getId(), sharedAlbumOptions)));
+                    } catch (ApiException e) { // e.g., io.grpc.StatusRuntimeException: PERMISSION_DENIED: Request had insufficient authentication scopes.
+                        LoggerFactory.getLogger().log(Level.SEVERE,
+                                ResourceBundleFactory.msg(Messages.SKIPPING_SHARE_2,
+                                        album.getTitle(), album.getProductUrl(), e.getMessage()),
+                                e);
+                        return Stream.empty();
+                    }
+                })
+                .forEach(tuple2 -> LoggerFactory.getLogger().info(
+                        ResourceBundleFactory.msg(Messages.SHARED_ALBUM_2, tuple2.i1().getTitle(),
+                                tuple2.i2().getShareInfo().getShareableUrl())));
+    }
+
+    private void unshareAlbums(PhotosLibraryClient photosLibraryClient, String regexPattern) {
+        GPhotos.getSharedAlbumsStreamByTitle(photosLibraryClient, regexPattern, true)
+                .sorted(Comparator.comparing(Album::getTitle))
+                .flatMap(album -> {
+                    try {
+                        return Stream.of(Tuple2.makeTuple(album, photosLibraryClient.unshareAlbum(album.getId())));
+                    } catch (ApiException e) { // e.g., io.grpc.StatusRuntimeException: PERMISSION_DENIED: Request had insufficient authentication scopes.
+                        LoggerFactory.getLogger().log(Level.SEVERE,
+                                ResourceBundleFactory.msg(Messages.SKIPPING_UNSHARE_2,
+                                        album.getTitle(), album.getProductUrl(), e.getMessage()),
+                                e);
+                        return Stream.empty();
+                    }
+                })
+                .forEach(tuple2 -> LoggerFactory.getLogger().info(
+                        ResourceBundleFactory.msg(Messages.UNSHARED_ALBUM_2, tuple2.i1().getTitle(),
+                                tuple2.i1().getProductUrl())));
     }
 
     private void processMediaDirectory(PhotosLibraryClient photosLibraryClient, File directory, String albumTitle) throws
@@ -174,8 +272,9 @@ public class GPhotosUploader implements Runnable {
         LoggerFactory.getLogger().info(
                 ResourceBundleFactory.msg(Messages.UPLOADING_MEDIA_ITEMS));
         GPhotos.createMediaItems(photosLibraryClient, album, mediaFilesOfMissingMediaItems)
-                .forEach(mediaItem -> ResourceBundleFactory.msg(Messages.UPLOADED_MEDIA_ITEM_2,
-                        mediaItem.getFilename(), mediaItem.getProductUrl()));
+                .forEach(mediaItem -> LoggerFactory.getLogger().info(
+                        ResourceBundleFactory.msg(Messages.UPLOADED_MEDIA_ITEM_2,
+                                mediaItem.getFilename(), mediaItem.getProductUrl())));
     }
 
     /**

@@ -53,7 +53,7 @@ publishing {
 }
 
 dependencies {
-    compile group: 'com.google.photos.library', name: 'google-photos-library-client', version: '1.0.1'
+    compile group: 'com.google.photos.library', name: 'google-photos-library-client', version: '1.1.0'
     // for com.google.photos.library.sample.factories.PhotosLibraryClientFactory
     compile group: 'com.google.oauth-client', name: 'google-oauth-client-jetty', version: '1.27.0'
     compile group: 'com.google.oauth-client', name: 'google-oauth-client-java6', version: '1.27.0'

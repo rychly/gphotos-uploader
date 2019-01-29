@@ -9,6 +9,15 @@ import java.util.stream.Stream;
 
 public final class Messages {
     public static final String CONNECTING_TO_GPHOTOS = "ConnectingToGPhotos";
+    public static final String LISTING_ALBUMS_1 = "ListingAlbums(%s)";
+    public static final String LISTING_SHARED_ALBUMS_1 = "ListingSharedAlbums(%s)";
+    public static final String LIST_ALBUM_2 = "ListAlbum(%s,%s)";
+    public static final String SHARING_ALBUMS_1 = "SharingAlbums(%s)";
+    public static final String SKIPPING_SHARE_2 = "SkippingShare(%s,%s,%s)";
+    public static final String SHARED_ALBUM_2 = "SharedAlbum(%s,%s)";
+    public static final String UNSHARING_ALBUMS_1 = "UnsharingAlbums(%s)";
+    public static final String SKIPPING_UNSHARE_2 = "SkippingUnshare(%s,%s,%s)";
+    public static final String UNSHARED_ALBUM_2 = "UnsharedAlbum(%s,%s)";
     public static final String SCANNING_DIRECTORIES = "ScanningDirectories";
     public static final String NOTHING_TO_PROCESS = "NothingToProcess";
     public static final String PROCESSING_DIRECTORY_1 = "ProcessingDirectory(%s)";
