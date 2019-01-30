@@ -1,5 +1,7 @@
 package io.gitlab.rychly.gphotos_uploader.logger;
 
+import org.apache.commons.lang3.builder.RecursiveToStringStyle;
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -184,6 +186,16 @@ public final class LoggerFactory {
     public static String tempLogFilePatternForName(String baseName) {
         return TEMP_LOG_FILE_PATTERN.replace("{}",
                 baseName + "." + TEMP_LOG_FILE_DATE_FORMAT.format(new Date()));
+    }
+
+    /**
+     * Recursively dump object's attributes to a string.
+     *
+     * @param object the object to dump
+     * @return the resulting string dump
+     */
+    public static String dumpObjectToString(Object object) {
+        return new ReflectionToStringBuilder(object, new RecursiveToStringStyle()).toString();
     }
 
     public static void demoLog(@NotNull Logger logger) {

@@ -66,6 +66,8 @@ dependencies {
     // logging, CLI args, and ANSI colors
     compile group: 'info.picocli', name: 'picocli', version: '3.8.0'
     compile group: 'org.fusesource.jansi', name: 'jansi', version: '1.17.1'
+    // for additional Java utility classes, e.g., Pair, Tripple, RecursiveToStringStyle
+    compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.8.1'
     // source-code quality
     compile group: 'org.jetbrains', name: 'annotations', version: '16.0.3'
     // Use JUnit test framework

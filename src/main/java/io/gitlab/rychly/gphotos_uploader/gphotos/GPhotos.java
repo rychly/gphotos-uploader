@@ -11,8 +11,8 @@ import com.google.rpc.Code;
 import io.gitlab.rychly.gphotos_uploader.i18n.Messages;
 import io.gitlab.rychly.gphotos_uploader.i18n.ResourceBundleFactory;
 import io.gitlab.rychly.gphotos_uploader.logger.LoggerFactory;
-import io.gitlab.rychly.gphotos_uploader.tuples.Tuple2;
-import io.gitlab.rychly.gphotos_uploader.tuples.Tuple3;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
@@ -74,7 +74,7 @@ public class GPhotos {
      * Get a stream of all albums of a given title or matching a given regular expression (the empty regex for all albums).
      *
      * @param photosLibraryClient the photos library client
-     * @param titleOrRegEx               the album title or its regular expression to search
+     * @param titleOrRegEx        the album title or its regular expression to search
      * @param isRegularExpression the provided title is a regular expression
      * @return the stream of the albums
      */
@@ -87,7 +87,7 @@ public class GPhotos {
      * Get a stream of all shared albums of a given title or matching a given regular expression (the empty regex for all shared albums).
      *
      * @param photosLibraryClient the photos library client
-     * @param titleOrRegEx               the album title or its regular expression to search
+     * @param titleOrRegEx        the album title or its regular expression to search
      * @param isRegularExpression the provided title is a regular expression
      * @return the stream of the shared albums
      */
@@ -144,7 +144,7 @@ public class GPhotos {
      * @return a triplet of the collections of media items matching the files, non-matching the files, and the collection of files missing in the media items
      */
     @NotNull
-    public static Tuple3<Collection<MediaItem>, Collection<MediaItem>, Collection<MediaFile>> classifyMediaItemsByFilesAndGetMissingFiles(
+    public static Triple<Collection<MediaItem>, Collection<MediaItem>, Collection<MediaFile>> classifyMediaItemsByFilesAndGetMissingFiles(
             @NotNull PhotosLibraryClient photosLibraryClient, Album album, @NotNull Stream<MediaFile> files) {
         // create a linked hash map for fast search of the files by their names with keeping their order as in the stream
         final Map<String, MediaFile> stringMediaFileMap =
@@ -161,7 +161,7 @@ public class GPhotos {
         for (MediaItem mediaItem : mediaItemsClassifiedByFiles.get(true)) {
             stringMediaFileMap.remove(mediaItem.getFilename());
         }
-        return Tuple3.makeTuple(mediaItemsClassifiedByFiles.get(true), mediaItemsClassifiedByFiles.get(false),
+        return Triple.of(mediaItemsClassifiedByFiles.get(true), mediaItemsClassifiedByFiles.get(false),
                 stringMediaFileMap.values());
     }
 
@@ -181,7 +181,7 @@ public class GPhotos {
                     try {
                         LoggerFactory.getLogger().fine(
                                 ResourceBundleFactory.msg(Messages.UPLOADING_FILE_1, mediaFile.getAbsolutePath()));
-                        return Stream.of(Tuple2.makeTuple(mediaFile, uploadMedia(photosLibraryClient, mediaFile)));
+                        return Stream.of(Pair.of(mediaFile, uploadMedia(photosLibraryClient, mediaFile)));
                     } catch (IOException e) {
                         LoggerFactory.getLogger().log(Level.SEVERE,
                                 ResourceBundleFactory.msg(Messages.SKIPPING_FILE_UPLOAD_2,
@@ -189,9 +189,9 @@ public class GPhotos {
                                 e);
                         return Stream.empty();
                     }
-                }).flatMap(tuple2 -> {
-                    final MediaFile mediaFile = tuple2.i1();
-                    final String uploadedContentToken = tuple2.i2();
+                }).flatMap(pair -> {
+                    final MediaFile mediaFile = pair.getLeft();
+                    final String uploadedContentToken = pair.getRight();
                     try {
                         return Stream.of(NewMediaItemFactory.createNewMediaItem(uploadedContentToken, mediaFile.generateDescription()));
                     } catch (IOException | NoSuchAlgorithmException e) {
