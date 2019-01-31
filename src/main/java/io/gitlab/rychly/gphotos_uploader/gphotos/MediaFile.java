@@ -22,21 +22,25 @@ import java.util.stream.Stream;
 public class MediaFile extends File {
     /**
      * Default regular expression matching the photo files.
+     * See https://support.google.com/photos/answer/6193313
      */
-    public static final String PHOTO_FILENAME_REGEXP_EXTENSIONS = "jpg|png";
-    public static final String PHOTO_FILENAME_REGEXP = ".*\\.(" + PHOTO_FILENAME_REGEXP_EXTENSIONS + ")";
+    public static final String PHOTO_FILENAME_REGEXP_EXTENSIONS =
+            "jpg|png|webp|crw|cr2|nef|orf|raf|arw|pef|srw|rw2|dng";
+    public static final String PHOTO_FILENAME_REGEXP = "(?i).*\\.(" + PHOTO_FILENAME_REGEXP_EXTENSIONS + ")";
 
     /**
      * Default regular expression matching the video files.
+     * See https://support.google.com/photos/answer/6193313
      */
-    public static final String VIDEO_FILENAME_REGEXP_EXTENSIONS = "mp4|avi";
-    public static final String VIDEO_FILENAME_REGEXP = ".*\\.(" + VIDEO_FILENAME_REGEXP_EXTENSIONS + ")";
+    public static final String VIDEO_FILENAME_REGEXP_EXTENSIONS =
+            "mpg|mod|mmv|tod|wmv|asf|avi|divx|mov|m4v|3gp|3g2|mp4|m2t|m2ts|mts|mkv";
+    public static final String VIDEO_FILENAME_REGEXP = "(?i).*\\.(" + VIDEO_FILENAME_REGEXP_EXTENSIONS + ")";
 
     /**
      * Default regular expression matching the media files.
      */
     public static final String MEDIA_FILENAME_REGEXP =
-            ".*\\.(" + PHOTO_FILENAME_REGEXP_EXTENSIONS + "|" + VIDEO_FILENAME_REGEXP_EXTENSIONS + ")";
+            "(?i).*\\.(" + PHOTO_FILENAME_REGEXP_EXTENSIONS + "|" + VIDEO_FILENAME_REGEXP_EXTENSIONS + ")";
 
     /**
      * Algorithm of the content checksum.
@@ -130,9 +134,9 @@ public class MediaFile extends File {
      * @throws FileNotFoundException cannot find the directory
      */
     public static Stream<MediaFile> fileFinder(File directory, String fileNameRegExp) throws FileNotFoundException {
-        final File[] files = directory.listFiles((dir, name) -> name.matches(fileNameRegExp));
+        final File[] files = directory.listFiles(pathname -> pathname.isFile() && !pathname.isHidden() && pathname.getName().matches(fileNameRegExp));
         if (files == null) {
-            throw new FileNotFoundException("Cannot find directory " + directory);
+            throw new FileNotFoundException("Cannot find media files in directory " + directory);
         }
         Arrays.sort(files, Comparator.comparing(File::getName));
         return Arrays.stream(files).map(MediaFile::new);

@@ -16,6 +16,7 @@ import io.gitlab.rychly.gphotos_uploader.logger.LoggerFactory;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.fusesource.jansi.AnsiConsole;
+import org.jetbrains.annotations.NotNull;
 import picocli.CommandLine;
 
 import java.io.File;
@@ -36,7 +37,8 @@ import java.util.stream.Stream;
         versionProvider = GPhotosUploader.GradlePropertiesVersionProvider.class,
         description = "Uploads missing media files into Google Photos and control their sharing.",
         mixinStandardHelpOptions = true, // add --help and --version options
-        showDefaultValues = true // show default values of all non-null options and positional parameters
+        showDefaultValues = true, // show default values of all non-null options and positional parameters
+        sortOptions = false // display options in the order they are declared in your class
 )
 public class GPhotosUploader implements Runnable {
     private static final String CONFIG_KEY_CREDENTIALS_FILE = "google.api.credentials.client-secret.file";
@@ -80,11 +82,17 @@ public class GPhotosUploader implements Runnable {
     @CommandLine.Option(names = {"-p", "---list-shared-albums"}, arity = "0..1", description = "List shared/public online albums matching particular regular expression in the alphabetical order (the empty expression matches all).")
     private String listSharedAlbums;
 
+    @CommandLine.Option(names = {"-u", "--unshare-albums"}, arity = "0..1", description = "Unshare shared online albums matching particular regular expression in the alphabetical order (the empty expression matches all).")
+    private String unshareAlbums;
+
     @CommandLine.Option(names = {"-s", "--share-albums"}, arity = "0..1", description = "Share (by URL) online albums matching particular regular expression in the alphabetical order (the empty expression matches all).")
     private String shareAlbums;
 
-    @CommandLine.Option(names = {"-u", "--unshare-albums"}, arity = "0..1", description = "Unshare shared online albums matching particular regular expression in the alphabetical order (the empty expression matches all).")
-    private String unshareAlbums;
+    @CommandLine.Option(names = {"-o", "--collaborative-sharing"}, description = "When sharing albums, enable the collaborative sharing (i.e., other user can contribute their media files into the album).")
+    private boolean collaborativeSharing = false;
+
+    @CommandLine.Option(names = {"-m", "--commentable-sharing"}, description = "When sharing albums, enable the commentable sharing (i.e., other user can create comments on media files in the album).")
+    private boolean commentableSharing = false;
 
     @CommandLine.Option(names = {"-f", "--import-export-file"}, arity = "0..1", description = "File to import from or export into for the share tokens import/export.")
     private File importExportFile = new File("gphotos-share-tokens.txt");
@@ -95,7 +103,10 @@ public class GPhotosUploader implements Runnable {
     @CommandLine.Option(names = {"-i", "--import-share-tokens"}, description = "Import share tokens from a file and join their shared online albums (see the import-export file option).")
     private boolean importShareTokens;
 
-    @CommandLine.Parameters(arity = "0..*", paramLabel = "media-directory", description = "Directory(ies) of media files to process (not recursively).")
+    @CommandLine.Option(names = {"-d", "--leave-share-tokens"}, description = "Use share tokens from a file to leave their shared online albums (see the import-export file option).")
+    private boolean leaveShareTokens;
+
+    @CommandLine.Parameters(arity = "0..*", paramLabel = "media-directory", description = "Directory(ies) of media files to process (recursively; the album name will be a plain directory name, without its parent path).")
     private File[] inputDirectories;
 
     private GPhotosUploader(Config config) {
@@ -133,54 +144,72 @@ public class GPhotosUploader implements Runnable {
                     ResourceBundleFactory.msg(Messages.CONNECTING_TO_GPHOTOS));
             final PhotosLibraryClient photosLibraryClient = PhotosLibraryClientFactory.createClient(
                     credentialsFile, REQUIRED_SCOPES, new File(credentialsDirectory));
-            // check mode
+            // actions
+            boolean actionPerformed = false;
             if (listAlbums != null) {
                 // list albums by regex
                 LoggerFactory.getLogger().fine(
                         ResourceBundleFactory.msg(Messages.LISTING_ALBUMS_1, listAlbums));
                 listAlbums(photosLibraryClient, listAlbums);
-            } else if (listSharedAlbums != null) {
+                actionPerformed = true;
+            }
+            if (listSharedAlbums != null) {
                 // list shared albums by regex
                 LoggerFactory.getLogger().fine(
                         ResourceBundleFactory.msg(Messages.LISTING_SHARED_ALBUMS_1, listSharedAlbums));
                 listSharedAlbums(photosLibraryClient, listSharedAlbums);
-            } else if (shareAlbums != null) {
-                // share albums by regex
-                LoggerFactory.getLogger().fine(
-                        ResourceBundleFactory.msg(Messages.SHARING_ALBUMS_1, shareAlbums));
-                shareAlbums(photosLibraryClient, shareAlbums, false, false);
-            } else if (unshareAlbums != null) {
+                actionPerformed = true;
+            }
+            if (unshareAlbums != null) {
                 // unshare albums by regex
                 LoggerFactory.getLogger().fine(
                         ResourceBundleFactory.msg(Messages.UNSHARING_ALBUMS_1, unshareAlbums));
                 unshareAlbums(photosLibraryClient, unshareAlbums);
-            } else if (exportSharedAlbums != null) {
+                actionPerformed = true;
+            }
+            if (shareAlbums != null) {
+                // share albums by regex
+                LoggerFactory.getLogger().fine(
+                        ResourceBundleFactory.msg(Messages.SHARING_ALBUMS_1, shareAlbums));
+                shareAlbums(photosLibraryClient, shareAlbums, collaborativeSharing, commentableSharing);
+                actionPerformed = true;
+            }
+            if (exportSharedAlbums != null) {
                 // export share tokens
                 LoggerFactory.getLogger().fine(
                         ResourceBundleFactory.msg(Messages.EXPORTING_TOKENS_2, exportSharedAlbums, importExportFile));
                 exportShareTokens(photosLibraryClient, importExportFile, exportSharedAlbums);
-            } else if (importShareTokens) {
+                actionPerformed = true;
+            }
+            if (importShareTokens) {
                 // import share tokens
                 LoggerFactory.getLogger().fine(
                         ResourceBundleFactory.msg(Messages.IMPORTING_TOKENS_1, importExportFile));
                 importShareTokens(photosLibraryClient, importExportFile);
-            } else {
+                actionPerformed = true;
+            }
+            if (leaveShareTokens) {
+                // leave share tokens
+                LoggerFactory.getLogger().fine(
+                        ResourceBundleFactory.msg(Messages.LEAVING_TOKENS_1, importExportFile));
+                leaveShareTokens(photosLibraryClient, importExportFile);
+                actionPerformed = true;
+            }
+            if (inputDirectories != null) {
                 // process directories
                 LoggerFactory.getLogger().fine(
                         ResourceBundleFactory.msg(Messages.SCANNING_DIRECTORIES));
-                if (inputDirectories != null) {
-                    for (File inputDirectory : inputDirectories) {
-                        LoggerFactory.getLogger().info(
-                                ResourceBundleFactory.msg(Messages.PROCESSING_DIRECTORY_1, inputDirectory.getAbsolutePath()));
-                        processMediaDirectory(photosLibraryClient, inputDirectory, inputDirectory.getName());
-                    }
-                } else {
-                    LoggerFactory.getLogger().warning(
-                            ResourceBundleFactory.msg(Messages.NOTHING_TO_PROCESS));
-                }
+                processMediaDirectories(photosLibraryClient, inputDirectories);
+                actionPerformed = true;
+            }
+            if (!actionPerformed) {
+                // print usage help
+                CommandLine.usage(this, System.out);
             }
         } catch (IOException | GeneralSecurityException e) {
-            e.printStackTrace();
+            LoggerFactory.getLogger().log(Level.SEVERE,
+                    ResourceBundleFactory.msg(Messages.UNKNOWN_ERROR_1, e.getMessage()),
+                    e);
         } finally {
             AnsiConsole.systemUninstall();
         }
@@ -255,7 +284,8 @@ public class GPhotosUploader implements Runnable {
             Files.write(exportedFile.toPath(), (Iterable<String>) exportLinesStream::iterator, StandardOpenOption.CREATE_NEW);
         } catch (IOException e) {
             LoggerFactory.getLogger().log(Level.SEVERE,
-                    ResourceBundleFactory.msg(Messages.EXPORT_ERROR_2, exportedFile.getAbsolutePath(), e));
+                    ResourceBundleFactory.msg(Messages.EXPORT_ERROR_2, exportedFile.getAbsolutePath(), e.getMessage()),
+                    e);
         }
     }
 
@@ -281,7 +311,55 @@ public class GPhotosUploader implements Runnable {
                             ResourceBundleFactory.msg(Messages.IMPORTED_TOKEN_2, album.getTitle(), album.getProductUrl())));
         } catch (IOException e) {
             LoggerFactory.getLogger().log(Level.SEVERE,
-                    ResourceBundleFactory.msg(Messages.IMPORT_ERROR_2, importedFile.getAbsolutePath(), e));
+                    ResourceBundleFactory.msg(Messages.IMPORT_ERROR_2, importedFile.getAbsolutePath(), e.getMessage()),
+                    e);
+        }
+    }
+
+    private void leaveShareTokens(PhotosLibraryClient photosLibraryClient, File importedFile) {
+        try {
+            Files.lines(importedFile.toPath())
+                    .flatMap(line -> {
+                        final String token = line.split("#", 2)[0].trim();
+                        return token.isEmpty() ? Stream.empty() : Stream.of(token);
+                    })
+                    .flatMap(token -> {
+                        try {
+                            return Stream.of(Pair.of(token, photosLibraryClient.leaveSharedAlbum(token)));
+                        } catch (ApiException | NullPointerException e) {
+                            LoggerFactory.getLogger().log(Level.SEVERE,
+                                    ResourceBundleFactory.msg(Messages.SKIPPING_LEAVE_3,
+                                            importedFile.getAbsolutePath(), token, e.getMessage()),
+                                    e);
+                            return Stream.empty();
+                        }
+                    })
+                    .forEach(pair -> LoggerFactory.getLogger().info(
+                            ResourceBundleFactory.msg(Messages.LEFT_TOKEN_1, pair.getLeft())));
+        } catch (IOException e) {
+            LoggerFactory.getLogger().log(Level.SEVERE,
+                    ResourceBundleFactory.msg(Messages.LEAVE_ERROR_2, importedFile.getAbsolutePath(), e.getMessage()),
+                    e);
+        }
+    }
+
+    private void processMediaDirectories(PhotosLibraryClient photosLibraryClient, @NotNull File[] directories) {
+        for (File directory : directories) {
+            // process media files in the directory
+            LoggerFactory.getLogger().info(
+                    ResourceBundleFactory.msg(Messages.PROCESSING_DIRECTORY_1, directory.getAbsolutePath()));
+            try {
+                processMediaDirectory(photosLibraryClient, directory, directory.getName());
+            } catch (IOException | NoSuchAlgorithmException e) {
+                LoggerFactory.getLogger().log(Level.SEVERE,
+                        ResourceBundleFactory.msg(Messages.PROCESSING_DIRECTORY_ERROR_2, directory.getAbsolutePath(), e.getMessage()),
+                        e);
+            }
+            // process sub-directories in the directory
+            final File[] subDirectories = directory.listFiles(pathname -> pathname.isDirectory() && !pathname.isHidden());
+            if (subDirectories != null) {
+                processMediaDirectories(photosLibraryClient, subDirectories);
+            }
         }
     }
 

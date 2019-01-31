@@ -26,9 +26,13 @@ public final class Messages {
     public static final String SKIPPING_IMPORT_3 = "SkippingImport(%s,%s,%s)";
     public static final String IMPORTED_TOKEN_2 = "ImportedToken(%s,%s)";
     public static final String IMPORT_ERROR_2 = "ImportError(%s,%s)";
+    public static final String LEAVING_TOKENS_1 = "LeavingTokens(%s)";
+    public static final String SKIPPING_LEAVE_3 = "SkippingLeave(%s,%s,%s)";
+    public static final String LEFT_TOKEN_1 = "LeftToken(%s)";
+    public static final String LEAVE_ERROR_2 = "LeaveError(%s,%s)";
     public static final String SCANNING_DIRECTORIES = "ScanningDirectories";
-    public static final String NOTHING_TO_PROCESS = "NothingToProcess";
     public static final String PROCESSING_DIRECTORY_1 = "ProcessingDirectory(%s)";
+    public static final String PROCESSING_DIRECTORY_ERROR_2 = "ProcessingDirectoryError(%s,%s)";
     public static final String OPENING_ALBUM_1 = "OpeningAlbum(%s)";
     public static final String ALBUM_URL_1 = "AlbumUrl(%s)";
     public static final String MATCHING_MEDIA_ITEMS_1 = "MatchingMediaItems(%d)";
@@ -46,6 +50,7 @@ public final class Messages {
     public static final String SKIPPING_MEDIA_ITEM_CREATION_2 = "SkippingMediaItemCreation(%s,%s)";
     public static final String CANNOT_LOAD_PROPERTIES_1 = "CannotLoadProperties(%s)";
     public static final String CANNOT_UPLOAD_FILE_2 = "CannotUploadFile(%s,%s)";
+    public static final String UNKNOWN_ERROR_1 = "UnknownError(%s)";
     public static final String MISSING = "Missing";
 
     public static Stream<String> getMessageKeysStream() {
