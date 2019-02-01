@@ -1,6 +1,7 @@
 package io.gitlab.rychly.gphotos_uploader;
 
 import com.google.api.gax.rpc.ApiException;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.photos.library.sample.factories.PhotosLibraryClientFactory;
 import com.google.photos.library.v1.PhotosLibraryClient;
@@ -29,6 +30,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.stream.Stream;
@@ -73,8 +75,9 @@ public class GPhotosUploader implements Runnable {
     @CommandLine.Option(names = {"-c", "--config"}, description = "Name of or path to the configuration file.")
     private String configFile = CONFIG_FILE;
 
-    @CommandLine.Option(names = {"-g", "--credentials-profile"}, arity = "0..1", description = "Profile name for Google API credentials configuration (the default value is empty).")
-    private String credentialsProfile;
+    @CommandLine.Option(names = {"-g", "--credentials-profile"}, arity = "0..*", description = "Profile name for Google API credentials configuration (the default value is empty). " +
+            "In the case of multiple profile names (multiple parameter values), the actions specified by other parameters will be executed for all of them.")
+    private String credentialsProfiles[];
 
     @CommandLine.Option(names = {"-l", "--list-albums"}, arity = "0..1", description = "List online albums matching particular regular expression in the alphabetical order (the empty expression matches all).")
     private String listAlbums;
@@ -100,8 +103,10 @@ public class GPhotosUploader implements Runnable {
     @CommandLine.Option(names = {"-e", "--export-share-tokens"}, arity = "0..1", description = "Export share tokens of shared online albums matching particular regular expression into the alphabetical order in a file (the empty expression matches all; also see the import-export file option).")
     private String exportSharedAlbums;
 
-    @CommandLine.Option(names = {"-i", "--import-share-tokens"}, description = "Import share tokens from a file and join their shared online albums (see the import-export file option).")
-    private boolean importShareTokens;
+    @CommandLine.Option(names = {"-i", "--import-share-tokens"}, arity = "0..2", description = "Import share tokens from a file and join their shared online albums (see the import-export file option). " +
+            "All the tokens will be imported (no parameter values), or the first N tokens will be imported (one parameter value), or tokens from the N-th to M-th token will be imported (two parameter values). " +
+            "The first token has number 1 (not zero).")
+    private int importShareTokens[];
 
     @CommandLine.Option(names = {"-d", "--leave-share-tokens"}, description = "Use share tokens from a file to leave their shared online albums (see the import-export file option).")
     private boolean leaveShareTokens;
@@ -133,78 +138,12 @@ public class GPhotosUploader implements Runnable {
                     ansiConsoleHandler.setLevel(Level.parse(consoleLevelName));
                 }
             }
-            // login credentials filename
-            final String credentialsFile = this.config.getConfigFile(
-                    configProperties.getProperty(CONFIG_KEY_CREDENTIALS_FILE + (credentialsProfile != null ? ".profile-" + credentialsProfile : ""), CREDENTIALS_FILE)).getAbsolutePath();
-            final String credentialsDirectory = this.config.getConfigFile(
-                    configProperties.getProperty(CONFIG_KEY_CREDENTIALS_DIRECTORY + (credentialsProfile != null ? ".profile-" + credentialsProfile : ""), CREDENTIALS_DIRECTORY)
-                            + File.separator).getAbsolutePath();
-            // login/connect into Google Photos
-            LoggerFactory.getLogger().fine(
-                    ResourceBundleFactory.msg(Messages.CONNECTING_TO_GPHOTOS));
-            final PhotosLibraryClient photosLibraryClient = PhotosLibraryClientFactory.createClient(
-                    credentialsFile, REQUIRED_SCOPES, new File(credentialsDirectory));
-            // actions
-            boolean actionPerformed = false;
-            if (listAlbums != null) {
-                // list albums by regex
-                LoggerFactory.getLogger().fine(
-                        ResourceBundleFactory.msg(Messages.LISTING_ALBUMS_1, listAlbums));
-                listAlbums(photosLibraryClient, listAlbums);
-                actionPerformed = true;
-            }
-            if (listSharedAlbums != null) {
-                // list shared albums by regex
-                LoggerFactory.getLogger().fine(
-                        ResourceBundleFactory.msg(Messages.LISTING_SHARED_ALBUMS_1, listSharedAlbums));
-                listSharedAlbums(photosLibraryClient, listSharedAlbums);
-                actionPerformed = true;
-            }
-            if (unshareAlbums != null) {
-                // unshare albums by regex
-                LoggerFactory.getLogger().fine(
-                        ResourceBundleFactory.msg(Messages.UNSHARING_ALBUMS_1, unshareAlbums));
-                unshareAlbums(photosLibraryClient, unshareAlbums);
-                actionPerformed = true;
-            }
-            if (shareAlbums != null) {
-                // share albums by regex
-                LoggerFactory.getLogger().fine(
-                        ResourceBundleFactory.msg(Messages.SHARING_ALBUMS_1, shareAlbums));
-                shareAlbums(photosLibraryClient, shareAlbums, collaborativeSharing, commentableSharing);
-                actionPerformed = true;
-            }
-            if (exportSharedAlbums != null) {
-                // export share tokens
-                LoggerFactory.getLogger().fine(
-                        ResourceBundleFactory.msg(Messages.EXPORTING_TOKENS_2, exportSharedAlbums, importExportFile));
-                exportShareTokens(photosLibraryClient, importExportFile, exportSharedAlbums);
-                actionPerformed = true;
-            }
-            if (importShareTokens) {
-                // import share tokens
-                LoggerFactory.getLogger().fine(
-                        ResourceBundleFactory.msg(Messages.IMPORTING_TOKENS_1, importExportFile));
-                importShareTokens(photosLibraryClient, importExportFile);
-                actionPerformed = true;
-            }
-            if (leaveShareTokens) {
-                // leave share tokens
-                LoggerFactory.getLogger().fine(
-                        ResourceBundleFactory.msg(Messages.LEAVING_TOKENS_1, importExportFile));
-                leaveShareTokens(photosLibraryClient, importExportFile);
-                actionPerformed = true;
-            }
-            if (inputDirectories != null) {
-                // process directories
-                LoggerFactory.getLogger().fine(
-                        ResourceBundleFactory.msg(Messages.SCANNING_DIRECTORIES));
-                processMediaDirectories(photosLibraryClient, inputDirectories);
-                actionPerformed = true;
-            }
-            if (!actionPerformed) {
-                // print usage help
-                CommandLine.usage(this, System.out);
+            if (credentialsProfiles == null) {
+                runForCredentialsProfile(configProperties, null);
+            } else {
+                for (String credentialsProfile : credentialsProfiles) {
+                    runForCredentialsProfile(configProperties, credentialsProfile);
+                }
             }
         } catch (IOException | GeneralSecurityException e) {
             LoggerFactory.getLogger().log(Level.SEVERE,
@@ -212,6 +151,85 @@ public class GPhotosUploader implements Runnable {
                     e);
         } finally {
             AnsiConsole.systemUninstall();
+        }
+    }
+
+    private void runForCredentialsProfile(Properties configProperties, String credentialsProfile) throws IOException, GeneralSecurityException {
+        // login credentials filename
+        final String credentialsFile = this.config.getConfigFile(
+                configProperties.getProperty(CONFIG_KEY_CREDENTIALS_FILE + (credentialsProfile != null ? ".profile-" + credentialsProfile : ""), CREDENTIALS_FILE)).getAbsolutePath();
+        final String credentialsDirectory = this.config.getConfigFile(
+                configProperties.getProperty(CONFIG_KEY_CREDENTIALS_DIRECTORY + (credentialsProfile != null ? ".profile-" + credentialsProfile : ""), CREDENTIALS_DIRECTORY)
+                        + File.separator).getAbsolutePath();
+        // login/connect into Google Photos
+        LoggerFactory.getLogger().fine(
+                ResourceBundleFactory.msg(Messages.CONNECTING_TO_GPHOTOS_1, Strings.nullToEmpty(credentialsProfile)));
+        final PhotosLibraryClient photosLibraryClient = PhotosLibraryClientFactory.createClient(
+                credentialsFile, REQUIRED_SCOPES, new File(credentialsDirectory));
+        // actions
+        boolean actionPerformed = false;
+        if (listAlbums != null) {
+            // list albums by regex
+            LoggerFactory.getLogger().fine(
+                    ResourceBundleFactory.msg(Messages.LISTING_ALBUMS_1, listAlbums));
+            listAlbums(photosLibraryClient, listAlbums);
+            actionPerformed = true;
+        }
+        if (listSharedAlbums != null) {
+            // list shared albums by regex
+            LoggerFactory.getLogger().fine(
+                    ResourceBundleFactory.msg(Messages.LISTING_SHARED_ALBUMS_1, listSharedAlbums));
+            listSharedAlbums(photosLibraryClient, listSharedAlbums);
+            actionPerformed = true;
+        }
+        if (unshareAlbums != null) {
+            // unshare albums by regex
+            LoggerFactory.getLogger().fine(
+                    ResourceBundleFactory.msg(Messages.UNSHARING_ALBUMS_1, unshareAlbums));
+            unshareAlbums(photosLibraryClient, unshareAlbums);
+            actionPerformed = true;
+        }
+        if (shareAlbums != null) {
+            // share albums by regex
+            LoggerFactory.getLogger().fine(
+                    ResourceBundleFactory.msg(Messages.SHARING_ALBUMS_1, shareAlbums));
+            shareAlbums(photosLibraryClient, shareAlbums, collaborativeSharing, commentableSharing);
+            actionPerformed = true;
+        }
+        if (exportSharedAlbums != null) {
+            // export share tokens
+            LoggerFactory.getLogger().fine(
+                    ResourceBundleFactory.msg(Messages.EXPORTING_TOKENS_2, exportSharedAlbums, importExportFile));
+            exportShareTokens(photosLibraryClient, importExportFile, exportSharedAlbums);
+            actionPerformed = true;
+        }
+        if (importShareTokens != null) {
+            // import share tokens
+            final int tokensFromNo = importShareTokens.length >= 2 ? importShareTokens[0] - 1 : 0; // N if (N,M) else 0
+            final int tokensToNo = importShareTokens.length >= 2 ? importShareTokens[1] - 1 // M if (N,M) else
+                    : importShareTokens.length == 1 ? importShareTokens[0] - 1 : Integer.MAX_VALUE - 1; // N if (N) else +INF
+            LoggerFactory.getLogger().fine(
+                    ResourceBundleFactory.msg(Messages.IMPORTING_TOKENS_3, tokensFromNo + 1, tokensToNo + 1, importExportFile));
+            importShareTokens(photosLibraryClient, importExportFile, tokensFromNo, tokensToNo);
+            actionPerformed = true;
+        }
+        if (leaveShareTokens) {
+            // leave share tokens
+            LoggerFactory.getLogger().fine(
+                    ResourceBundleFactory.msg(Messages.LEAVING_TOKENS_1, importExportFile));
+            leaveShareTokens(photosLibraryClient, importExportFile);
+            actionPerformed = true;
+        }
+        if (inputDirectories != null) {
+            // process directories
+            LoggerFactory.getLogger().fine(
+                    ResourceBundleFactory.msg(Messages.SCANNING_DIRECTORIES));
+            processMediaDirectories(photosLibraryClient, inputDirectories);
+            actionPerformed = true;
+        }
+        if (!actionPerformed) {
+            // print usage help
+            CommandLine.usage(this, System.out);
         }
     }
 
@@ -289,26 +307,30 @@ public class GPhotosUploader implements Runnable {
         }
     }
 
-    private void importShareTokens(PhotosLibraryClient photosLibraryClient, File importedFile) {
+    private void importShareTokens(PhotosLibraryClient photosLibraryClient, File importedFile, int tokensFromNo, int tokensToNo) {
+        final AtomicInteger atomicInteger = new AtomicInteger(1); // indices start with 1 to be more user-friendly
         try {
             Files.lines(importedFile.toPath())
                     .flatMap(line -> {
                         final String token = line.split("#", 2)[0].trim();
                         return token.isEmpty() ? Stream.empty() : Stream.of(token);
                     })
-                    .flatMap(token -> {
+                    .map(token -> Pair.of(atomicInteger.getAndIncrement(), token)) // add an index number to each token
+                    .limit(tokensToNo + 1).skip(tokensFromNo) // first limit, then skip, must be in this order
+                    .flatMap(indexTokenPair -> {
                         try {
-                            return Stream.of(photosLibraryClient.joinSharedAlbum(token).getAlbum());
+                            return Stream.of(Pair.of(indexTokenPair.getLeft(), photosLibraryClient.joinSharedAlbum(indexTokenPair.getRight()).getAlbum()));
                         } catch (ApiException | NullPointerException e) {
                             LoggerFactory.getLogger().log(Level.SEVERE,
-                                    ResourceBundleFactory.msg(Messages.SKIPPING_IMPORT_3,
-                                            importedFile.getAbsolutePath(), token, e.getMessage()),
+                                    ResourceBundleFactory.msg(Messages.SKIPPING_IMPORT_4,
+                                            importedFile.getAbsolutePath(), indexTokenPair.getLeft(), indexTokenPair.getRight(), e.getMessage()),
                                     e);
                             return Stream.empty();
                         }
                     })
-                    .forEach(album -> LoggerFactory.getLogger().info(
-                            ResourceBundleFactory.msg(Messages.IMPORTED_TOKEN_2, album.getTitle(), album.getProductUrl())));
+                    .forEach(indexAlbumPair -> LoggerFactory.getLogger().info(
+                            ResourceBundleFactory.msg(Messages.IMPORTED_TOKEN_3, indexAlbumPair.getLeft(),
+                                    indexAlbumPair.getRight().getTitle(), indexAlbumPair.getRight().getProductUrl())));
         } catch (IOException e) {
             LoggerFactory.getLogger().log(Level.SEVERE,
                     ResourceBundleFactory.msg(Messages.IMPORT_ERROR_2, importedFile.getAbsolutePath(), e.getMessage()),

@@ -48,3 +48,9 @@ google.api.credentials.client-secret.file.profile-username=client_secret.json
 google.api.credentials.directory.profile-username=username-credentials
 ~~~
 3.	Run the client application with the credentials profile "username" as `./run.sh -g username -l` and [authorize the application to access data of a particular Google account](https://accounts.google.com/o/oauth2/auth)
+
+## Ordering of Media in Google Photos
+
+### Ordering of Shared Albums
+
+The shared albums in the chronological order by the date of their sharing (i.e., when their owner enabled them for sharing; not by date of joining the albums).

@@ -8,7 +8,7 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 public final class Messages {
-    public static final String CONNECTING_TO_GPHOTOS = "ConnectingToGPhotos";
+    public static final String CONNECTING_TO_GPHOTOS_1 = "ConnectingToGPhotos(%s)";
     public static final String LISTING_ALBUMS_1 = "ListingAlbums(%s)";
     public static final String LISTING_SHARED_ALBUMS_1 = "ListingSharedAlbums(%s)";
     public static final String LIST_ALBUM_2 = "ListAlbum(%s,%s)";
@@ -22,9 +22,9 @@ public final class Messages {
     public static final String EXPORTING_TOKENS_2 = "ExportingTokens(%s,%s)";
     public static final String EXPORTING_TOKEN_2 = "ExportingToken(%s,%s)";
     public static final String EXPORT_ERROR_2 = "ExportError(%s,%s)";
-    public static final String IMPORTING_TOKENS_1 = "ImportingTokens(%s)";
-    public static final String SKIPPING_IMPORT_3 = "SkippingImport(%s,%s,%s)";
-    public static final String IMPORTED_TOKEN_2 = "ImportedToken(%s,%s)";
+    public static final String IMPORTING_TOKENS_3 = "ImportingTokens(%d,%d,%s)";
+    public static final String SKIPPING_IMPORT_4 = "SkippingImport(%s,%d,%s,%s)";
+    public static final String IMPORTED_TOKEN_3 = "ImportedToken(%d,%s,%s)";
     public static final String IMPORT_ERROR_2 = "ImportError(%s,%s)";
     public static final String LEAVING_TOKENS_1 = "LeavingTokens(%s)";
     public static final String SKIPPING_LEAVE_3 = "SkippingLeave(%s,%s,%s)";
