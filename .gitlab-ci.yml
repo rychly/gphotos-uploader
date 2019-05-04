@@ -11,7 +11,7 @@ variables:
 
 before_script:
   - wget -qO - "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" | unzip -d /tmp -
-  - mkdir "${GRADLE_HOME%/*}" && mv "/tmp/gradle-${GRADLE_VERSION}" "${GRADLE_HOME}/" && chmod 755 "${GRADLE_HOME}/bin/gradle" && ln -vs "${GRADLE_HOME}/bin/gradle" /usr/bin/gradle
+  - mkdir -p "${GRADLE_HOME%/*}" && mv "/tmp/gradle-${GRADLE_VERSION}" "${GRADLE_HOME}/" && chmod 755 "${GRADLE_HOME}/bin/gradle" && ln -vs "${GRADLE_HOME}/bin/gradle" /usr/bin/gradle
   - export GRADLE_USER_HOME=`pwd`/.gradle
   - apk add --no-cache git
 
