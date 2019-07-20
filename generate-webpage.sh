@@ -21,7 +21,9 @@ cd "${PUBLIC}"
 cat <<END
 <html>
 <head>
+	<meta charset="utf-8">
 	<title>${externalProjectName} version ${versionName}</title>
+	<link rel="stylesheet" href="https://www.google.com/css/maia.css">
 </head>
 <body>
 	<h1>${externalProjectName} version ${versionName}</h1>
